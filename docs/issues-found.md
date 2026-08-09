@@ -2,57 +2,47 @@
 
 ## Build warnings
 
-* **NETSDK1138:** `net6.0-windows` is out of support. This is an acknowledged baseline condition for this inspection; do not upgrade it tonight.
-* **CS8622:** `MainWindow.timer_Tick` uses a non-nullable `object sender` for a timer event whose delegate permits a nullable sender. The warning does not block the build, but it undermines the project’s otherwise enabled nullable analysis.
-
-The supplied baseline reports 0 build errors and 4 warnings total.
+* **NETSDK1138:** `net6.0-windows` is out of support. It is intentionally not upgraded in this stabilization pass.
+* **CS8622:** The timer and media-failure callbacks previously had nullability mismatches. They now accept `object? sender`; the stabilization build verifies this warning is resolved.
 
 ## Runtime risks
 
-* `MediaElement` playback depends on Windows-installed codecs. Files advertised by the dialog may fail to load or play; MKV is especially unreliable in the built-in WPF media pipeline.
-* There is no `MediaFailed` handler, so unsupported, corrupt, inaccessible, or codec-incompatible media can fail with no useful feedback to the user.
-* The duration is read only when `NaturalDuration.HasTimeSpan`. Live streams and media with unavailable/indeterminate metadata will never show a useful status, and no alternate state is shown.
-* Playback controls are always enabled, including before a file is selected and while a file is still opening. Their results depend on `MediaElement` internal state rather than explicit application rules.
+* `MediaElement` uses the Windows media stack. A listed extension does not guarantee that its codec will open or play, especially for MKV files and uncommon codec variants.
+* File loading is asynchronous. The controls remain disabled until `MediaOpened`, but a source that never raises either open or failure remains a platform-level edge case.
 
-## Bugs
+## Bugs fixed in this pass
 
-* The Open dialog filter is internally inconsistent: its label claims MP3 support, but the actual extension pattern ends with `*jpg`, not `*.mp3`. It can expose JPEG files under “Video files” and does not correctly include MP3 files.
-* The filter’s description says “Video files” even though the screen is intended to be a video/audio player and appears to intend MP3 support.
-* The label initially reads “Not playing...”, but after the first timer tick it changes to “No file selected...”; neither state is deliberately managed. After Stop or playback completion it can continue displaying a position/duration that implies active playback.
+* Corrected the malformed media-file filter that offered `*jpg` in place of `*.mp3`.
+* Added media-opened, media-ended, and media-failed handling with clear status messages.
+* Added explicit playback state and state-aware controls, preventing invalid player actions before media loads.
+* Replaced the continuously running timer with a timer active only during playback and stopped on all requested terminal events.
+* Added lightweight, in-memory multi-file navigation with Previous and Next controls.
 
-## Fragile code
+## Fragile code / remaining limitations
 
-* The `DispatcherTimer` is a constructor-local variable and is started indefinitely. The dispatcher retains it, but the window has no explicit way to stop it during teardown. This risks unnecessary work and object retention if the window lifecycle ever becomes more complex.
-* Reset sets `Position` immediately after `Stop` with no check that source media is loaded or seekable. Behavior is delegated to the media implementation and may vary for failed, loading, or non-seekable media.
-* File opening simply assigns `new Uri(fileName)` with no validation, exception handling, or user-facing recovery path.
-* No event-driven synchronization exists for source changes, media opened, media ended, failure, buffering, or position. The one-second polling interval makes status inherently coarse.
+* There is no timeout, cancellation, or detailed diagnostic logging for a media source that fails to resolve cleanly.
+* Reset/stop behavior is intentionally basic and depends on `MediaElement` semantics.
+* State, playlist, and UI remain combined in the window code-behind; this is controlled scope, not a full architecture boundary.
 
 ## Obsolete/deprecated code
 
-* The target framework is out of support (NETSDK1138). This is the primary platform-obsolescence issue and is deferred by the requested scope.
-* `App.xaml.cs` contains unused `using` directives (`System`, collections, configuration, data, LINQ, tasks); they are harmless but indicate generated/prototype residue.
-* `MainWindow.xaml` contains unused XML namespace declarations (`d` is used only for design-time background; `local` is unused) and an unused/poorly named Open button identifier (`OpenBtnAudioFile`).
+* `net6.0-windows` is out of support. Framework modernization remains deferred.
+* The project has leftover prototype naming and unused generated-code imports in `App.xaml.cs`.
 
 ## UI issues
 
-* The window title remains “MainWindow” rather than the product name.
-* The `MediaElement` and control panel use fixed dimensions and large/negative margins. The UI is not responsive to normal window resizing and is likely brittle under DPI or text scaling.
-* “Open File” uses an 8-point font and a 45-pixel width, which is difficult to read and not localization-friendly.
-* There are no disabled states, keyboard affordances beyond defaults, progress/seek controls, volume controls, loading feedback, or error messages.
+* The UI still uses WPF default styling and fixed layout values.
+* The future dark galaxy/near-black visual direction, custom controls, playlist panel, seek controls, and volume controls are not implemented in this pass.
 
 ## Architecture issues
 
-* `MainWindow` owns the UI, file system interaction, media commands, display formatting, periodic polling, and implicit playback state. This is simple but not independently testable.
-* The only window class is in namespace `MediaPlayer`, while the project/application namespace is `VideoAudioPlayer`; the mismatch is misleading even though the XAML compiles.
-* There is no test project, logging, configuration, or diagnostic path for media failures.
-* The application has no explicit source-of-truth state (no selected file, duration, playback state, or error state model).
+* No persistent playlist format, playback history, view model, service abstraction, logging, or automated tests exist yet.
+* The `MediaPlayer` window namespace differs from the `VideoAudioPlayer` application namespace.
 
 ## Future modernization opportunities
 
-These are deliberately deferred; they are not recommendations to perform tonight.
-
-1. Stabilize behavior first: correct the filter, add media lifecycle/error handling, and define valid command states.
-2. Move to a supported Windows target framework only after behavior is covered by a small regression suite and deployment support is understood.
-3. Introduce a modest view model/service boundary when the player gains more state or features; avoid a broad architecture rewrite for the current scope.
-4. Evaluate a maintained media engine only if the product requires reliable cross-codec/container playback beyond the Windows/WPF media stack.
-5. Replace fixed layout with WPF layout primitives, accessible labels, and scalable control sizing after playback behavior is stable.
+1. Add a dedicated playlist model with add/remove/reorder and an on-screen playlist panel.
+2. Add media metadata, seek, volume, and configurable end-of-item behavior.
+3. Establish test coverage for state transitions and playlist navigation before a framework upgrade.
+4. Move to the dark custom UI in a separate visual pass, preserving the stabilized behavior.
+5. Assess a different media engine only if reliable broad-codec support is a product requirement.
