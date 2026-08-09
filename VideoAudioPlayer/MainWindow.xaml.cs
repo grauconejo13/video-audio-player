@@ -1,9 +1,12 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Threading;
+using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Threading;
 using Microsoft.Win32;
+using MediaPlayer.AudioAnalysis;
 
 namespace MediaPlayer
 {
@@ -20,12 +23,16 @@ namespace MediaPlayer
         }
 
         private readonly DispatcherTimer _progressTimer;
+        private readonly DispatcherTimer _visualizerTimer;
+        private readonly AudioSpectrumAnalyzer _spectrumAnalyzer = new();
         private readonly List<Uri> _playlist = new();
         private PlaybackState _playbackState = PlaybackState.Idle;
         private int _currentIndex = -1;
         private bool _isSeeking;
         private bool _isSynchronizingPlaylistSelection;
         private bool _isCurrentItemAudio;
+        private int _spectrumRequestInFlight;
+        private int _analysisGeneration;
 
         public MainWindow()
         {
@@ -33,11 +40,14 @@ namespace MediaPlayer
 
             _progressTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
             _progressTimer.Tick += timer_Tick;
+            _visualizerTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(50) };
+            _visualizerTimer.Tick += visualizerTimer_Tick;
 
             mediaElement.MediaOpened += mediaElement_MediaOpened;
             mediaElement.MediaEnded += mediaElement_MediaEnded;
             mediaElement.MediaFailed += mediaElement_MediaFailed;
             mediaElement.Volume = sliderVolume.Value;
+            Closed += MainWindow_Closed;
 
             UpdateControls();
         }
@@ -48,6 +58,31 @@ namespace MediaPlayer
             {
                 UpdateProgressStatus();
             }
+        }
+
+        private void visualizerTimer_Tick(object? sender, EventArgs e)
+        {
+            if (!_isCurrentItemAudio || _playbackState != PlaybackState.Playing || !_spectrumAnalyzer.IsLoaded || Interlocked.CompareExchange(ref _spectrumRequestInFlight, 1, 0) != 0)
+            {
+                return;
+            }
+
+            TimeSpan position = mediaElement.Position;
+            int generation = _analysisGeneration;
+            _ = Task.Run(() => _spectrumAnalyzer.AnalyzeAt(position, 32)).ContinueWith(task => Dispatcher.BeginInvoke(new Action(() =>
+            {
+                Interlocked.Exchange(ref _spectrumRequestInFlight, 0);
+                if (generation == _analysisGeneration && task.Status == TaskStatus.RanToCompletion && task.Result is not null)
+                {
+                    audioVisualPlaceholder.UpdateSpectrum(task.Result);
+                }
+            })));
+        }
+
+        private void MainWindow_Closed(object? sender, EventArgs e)
+        {
+            _visualizerTimer.Stop();
+            _spectrumAnalyzer.Dispose();
         }
 
         private void openBtnMediaFile_Click(object sender, RoutedEventArgs e)
@@ -94,6 +129,8 @@ namespace MediaPlayer
             _playbackState = PlaybackState.Stopped;
             UpdateTimeDisplay();
             StopAudioVisual("Playback finished");
+            audioVisualPlaceholder.ResetSpectrum();
+            _analysisGeneration++;
             lblStatus.Content = "Playback finished";
             UpdateControls();
         }
@@ -102,8 +139,12 @@ namespace MediaPlayer
         {
             StopProgressTimer();
             _playbackState = PlaybackState.Failed;
+            StopAudioVisual("Playback unavailable");
+            audioVisualPlaceholder.ResetSpectrum();
+            _analysisGeneration++;
             if (_isCurrentItemAudio)
             {
+                audioVisualPlaceholder.ResetSpectrum();
                 audioVisualPlaceholder.SetTrack(CurrentItemTitle, "Playback unavailable");
                 audioVisualPlaceholder.Visibility = Visibility.Visible;
             }
@@ -128,6 +169,7 @@ namespace MediaPlayer
             {
                 audioVisualPlaceholder.SetTrack(CurrentItemTitle, "Playing");
                 audioVisualPlaceholder.StartAmbientAnimation();
+                StartVisualizerTimer();
             }
             StartProgressTimer();
             UpdateProgressStatus();
@@ -161,6 +203,8 @@ namespace MediaPlayer
             _playbackState = PlaybackState.Stopped;
             UpdateTimeDisplay();
             StopAudioVisual("Stopped");
+            audioVisualPlaceholder.ResetSpectrum();
+            _analysisGeneration++;
             lblStatus.Content = $"Stopped - {FormatPositionAndDuration()}";
             UpdateControls();
         }
@@ -178,6 +222,8 @@ namespace MediaPlayer
             _playbackState = PlaybackState.Stopped;
             UpdateTimeDisplay();
             StopAudioVisual("Ready to restart");
+            audioVisualPlaceholder.ResetSpectrum();
+            _analysisGeneration++;
             lblStatus.Content = $"Reset - {FormatPositionAndDuration()}";
             UpdateControls();
         }
@@ -250,9 +296,24 @@ namespace MediaPlayer
             StopProgressTimer();
             _playbackState = PlaybackState.Idle;
             audioVisualPlaceholder.StopAmbientAnimation();
+            audioVisualPlaceholder.ResetSpectrum();
+            _visualizerTimer.Stop();
+            _analysisGeneration++;
+            _spectrumAnalyzer.Dispose();
             mediaElement.Stop();
             mediaElement.Source = _playlist[_currentIndex];
             _isCurrentItemAudio = IsAudioFile(_playlist[_currentIndex]);
+            if (_isCurrentItemAudio)
+            {
+                try
+                {
+                    _spectrumAnalyzer.Load(_playlist[_currentIndex].LocalPath);
+                }
+                catch
+                {
+                    // Playback remains owned by MediaElement when this optional analysis reader cannot open the file.
+                }
+            }
             lblCurrentItem.Content = $"{_currentIndex + 1} of {_playlist.Count}: {CurrentItemTitle}";
             lblStatus.Content = "Loading media...";
             ConfigureMediaViewport();
@@ -301,7 +362,16 @@ namespace MediaPlayer
             if (_isCurrentItemAudio)
             {
                 audioVisualPlaceholder.StopAmbientAnimation();
+                _visualizerTimer.Stop();
                 audioVisualPlaceholder.SetTrack(CurrentItemTitle, state);
+            }
+        }
+
+        private void StartVisualizerTimer()
+        {
+            if (!_visualizerTimer.IsEnabled && _spectrumAnalyzer.IsLoaded)
+            {
+                _visualizerTimer.Start();
             }
         }
 

@@ -9,6 +9,7 @@ VideoAudioPlayer/
   App.xaml / App.xaml.cs             Application startup
   Themes/PlayerTheme.xaml            Shared dark player palette and reusable control styles
   Controls/AudioVisualPlaceholder    Reusable ambient audio-only viewport visual
+  AudioAnalysis/AudioSpectrumAnalyzer NAudio sidecar decoder and FFT band analysis
   MainWindow.xaml                    Responsive playlist/sidebar, media display, and transport UI
   MainWindow.xaml.cs                 Player state, playback, UI synchronization, and navigation
   AssemblyInfo.cs                    WPF theme metadata
@@ -24,6 +25,7 @@ The project has no NuGet package dependencies, test project, view models, or ser
 | `App` | Starts `MainWindow.xaml`. |
 | `PlayerTheme.xaml` | Supplies the reusable galaxy-black palette and shared styles for panels, buttons, list items, labels, and sliders. |
 | `AudioVisualPlaceholder` | Uses native WPF storyboards for a slow, static-when-idle ambient display for audio items. |
+| `AudioSpectrumAnalyzer` | Uses NAudio to read the selected local audio file off the UI thread, compute a 2,048-sample FFT, and return 32 logarithmic spectrum bands. |
 | `MainWindow.xaml` | Hosts a responsive playlist sidebar, media display, status header, seek/volume controls, and transport bar. |
 | `MainWindow` | Owns the explicit playback state, lightweight in-memory playlist, media events, UI synchronization, and control availability. |
 | `DispatcherTimer` | Refreshes playback position only while playback is active. |
@@ -37,6 +39,8 @@ The project has no NuGet package dependencies, test project, view models, or ser
 5. `MediaEnded` changes state to `Stopped`; `MediaFailed` changes state to `Failed` and displays the media exception message.
 
 When the selected item has a supported audio extension, the media viewport uses `AudioVisualPlaceholder` instead of showing the hidden `MediaElement` surface. Its animation runs only during `Playing` and is stopped for pause, stop, reset, end, failure, and item changes. Video entries retain the normal `MediaElement` viewport.
+
+The audio placeholder also displays file-backed FFT bars. `MediaElement` remains the playback engine; NAudio 2.3.0 is an analysis-only dependency. A 20 Hz dispatcher timer captures the current `MediaElement.Position`; a background task seeks/reads the audio sidecar near that position and computes spectrum data. This is real decoded file audio rather than generated values, but cannot be sample-perfect with the audible output because `MediaElement` does not expose its post-decoder/post-mixer sample stream. Decoder and output buffering, plus codec differences, can introduce a small visual offset. Moving audio playback to NAudio would provide the cleanest sample-accurate analysis path, but is intentionally deferred to preserve the current player architecture.
 
 The explicit states are `Idle`, `Loaded`, `Playing`, `Paused`, `Stopped`, and `Failed`. `Idle` also covers the short loading interval because no separate loading state was requested.
 
