@@ -8,6 +8,7 @@ VideoAudioPlayer/
   VideoAudioPlayer.csproj            SDK-style WinExe targeting net6.0-windows
   App.xaml / App.xaml.cs             Application startup
   Themes/PlayerTheme.xaml            Shared dark player palette and reusable control styles
+  Controls/AudioVisualPlaceholder    Reusable ambient audio-only viewport visual
   MainWindow.xaml                    Responsive playlist/sidebar, media display, and transport UI
   MainWindow.xaml.cs                 Player state, playback, UI synchronization, and navigation
   AssemblyInfo.cs                    WPF theme metadata
@@ -22,6 +23,7 @@ The project has no NuGet package dependencies, test project, view models, or ser
 | --- | --- |
 | `App` | Starts `MainWindow.xaml`. |
 | `PlayerTheme.xaml` | Supplies the reusable galaxy-black palette and shared styles for panels, buttons, list items, labels, and sliders. |
+| `AudioVisualPlaceholder` | Uses native WPF storyboards for a slow, static-when-idle ambient display for audio items. |
 | `MainWindow.xaml` | Hosts a responsive playlist sidebar, media display, status header, seek/volume controls, and transport bar. |
 | `MainWindow` | Owns the explicit playback state, lightweight in-memory playlist, media events, UI synchronization, and control availability. |
 | `DispatcherTimer` | Refreshes playback position only while playback is active. |
@@ -33,6 +35,8 @@ The project has no NuGet package dependencies, test project, view models, or ser
 3. `MediaOpened` changes state to `Loaded`, exposes valid controls, and displays available duration metadata.
 4. Play changes state to `Playing` and starts the timer. Pause, Stop, Reset, Ended, and Failed stop the timer deterministically.
 5. `MediaEnded` changes state to `Stopped`; `MediaFailed` changes state to `Failed` and displays the media exception message.
+
+When the selected item has a supported audio extension, the media viewport uses `AudioVisualPlaceholder` instead of showing the hidden `MediaElement` surface. Its animation runs only during `Playing` and is stopped for pause, stop, reset, end, failure, and item changes. Video entries retain the normal `MediaElement` viewport.
 
 The explicit states are `Idle`, `Loaded`, `Playing`, `Paused`, `Stopped`, and `Failed`. `Idle` also covers the short loading interval because no separate loading state was requested.
 

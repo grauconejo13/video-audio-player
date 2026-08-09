@@ -25,6 +25,7 @@ namespace MediaPlayer
         private int _currentIndex = -1;
         private bool _isSeeking;
         private bool _isSynchronizingPlaylistSelection;
+        private bool _isCurrentItemAudio;
 
         public MainWindow()
         {
@@ -79,6 +80,10 @@ namespace MediaPlayer
             ConfigureProgressSlider();
             UpdateTimeDisplay();
             emptyMediaMessage.Visibility = Visibility.Collapsed;
+            if (_isCurrentItemAudio)
+            {
+                audioVisualPlaceholder.SetTrack(CurrentItemTitle, "Ready to play");
+            }
             lblStatus.Content = $"Loaded - {FormatPositionAndDuration()}";
             UpdateControls();
         }
@@ -88,6 +93,7 @@ namespace MediaPlayer
             StopProgressTimer();
             _playbackState = PlaybackState.Stopped;
             UpdateTimeDisplay();
+            StopAudioVisual("Playback finished");
             lblStatus.Content = "Playback finished";
             UpdateControls();
         }
@@ -96,7 +102,15 @@ namespace MediaPlayer
         {
             StopProgressTimer();
             _playbackState = PlaybackState.Failed;
-            emptyMediaMessage.Visibility = Visibility.Visible;
+            if (_isCurrentItemAudio)
+            {
+                audioVisualPlaceholder.SetTrack(CurrentItemTitle, "Playback unavailable");
+                audioVisualPlaceholder.Visibility = Visibility.Visible;
+            }
+            else
+            {
+                emptyMediaMessage.Visibility = Visibility.Visible;
+            }
             lblStatus.Content = $"Unable to play this file: {e.ErrorException.Message}";
             UpdateControls();
         }
@@ -110,6 +124,11 @@ namespace MediaPlayer
 
             mediaElement.Play();
             _playbackState = PlaybackState.Playing;
+            if (_isCurrentItemAudio)
+            {
+                audioVisualPlaceholder.SetTrack(CurrentItemTitle, "Playing");
+                audioVisualPlaceholder.StartAmbientAnimation();
+            }
             StartProgressTimer();
             UpdateProgressStatus();
             UpdateControls();
@@ -125,6 +144,7 @@ namespace MediaPlayer
             mediaElement.Pause();
             StopProgressTimer();
             _playbackState = PlaybackState.Paused;
+            StopAudioVisual("Paused");
             lblStatus.Content = $"Paused - {FormatPositionAndDuration()}";
             UpdateControls();
         }
@@ -140,6 +160,7 @@ namespace MediaPlayer
             StopProgressTimer();
             _playbackState = PlaybackState.Stopped;
             UpdateTimeDisplay();
+            StopAudioVisual("Stopped");
             lblStatus.Content = $"Stopped - {FormatPositionAndDuration()}";
             UpdateControls();
         }
@@ -156,6 +177,7 @@ namespace MediaPlayer
             StopProgressTimer();
             _playbackState = PlaybackState.Stopped;
             UpdateTimeDisplay();
+            StopAudioVisual("Ready to restart");
             lblStatus.Content = $"Reset - {FormatPositionAndDuration()}";
             UpdateControls();
         }
@@ -227,11 +249,13 @@ namespace MediaPlayer
         {
             StopProgressTimer();
             _playbackState = PlaybackState.Idle;
+            audioVisualPlaceholder.StopAmbientAnimation();
             mediaElement.Stop();
             mediaElement.Source = _playlist[_currentIndex];
-            lblCurrentItem.Content = $"{_currentIndex + 1} of {_playlist.Count}: {Path.GetFileName(_playlist[_currentIndex].LocalPath)}";
+            _isCurrentItemAudio = IsAudioFile(_playlist[_currentIndex]);
+            lblCurrentItem.Content = $"{_currentIndex + 1} of {_playlist.Count}: {CurrentItemTitle}";
             lblStatus.Content = "Loading media...";
-            emptyMediaMessage.Visibility = Visibility.Visible;
+            ConfigureMediaViewport();
             sliderProgress.IsEnabled = false;
             sliderProgress.Value = 0;
             sliderProgress.Maximum = 1;
@@ -239,6 +263,46 @@ namespace MediaPlayer
             lblDuration.Content = "--:--";
             SynchronizePlaylistSelection();
             UpdateControls();
+        }
+
+        private string CurrentItemTitle => _currentIndex >= 0 && _currentIndex < _playlist.Count
+            ? Path.GetFileName(_playlist[_currentIndex].LocalPath)
+            : "Audio ready";
+
+        private static bool IsAudioFile(Uri item)
+        {
+            string extension = Path.GetExtension(item.LocalPath);
+            return extension.Equals(".mp3", StringComparison.OrdinalIgnoreCase)
+                || extension.Equals(".wav", StringComparison.OrdinalIgnoreCase)
+                || extension.Equals(".wma", StringComparison.OrdinalIgnoreCase)
+                || extension.Equals(".m4a", StringComparison.OrdinalIgnoreCase)
+                || extension.Equals(".aac", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private void ConfigureMediaViewport()
+        {
+            StopAudioVisual("Ready to play");
+            if (_isCurrentItemAudio)
+            {
+                mediaElement.Visibility = Visibility.Collapsed;
+                audioVisualPlaceholder.Visibility = Visibility.Visible;
+                audioVisualPlaceholder.SetTrack(CurrentItemTitle, "Loading audio...");
+                emptyMediaMessage.Visibility = Visibility.Collapsed;
+                return;
+            }
+
+            audioVisualPlaceholder.Visibility = Visibility.Collapsed;
+            mediaElement.Visibility = Visibility.Visible;
+            emptyMediaMessage.Visibility = Visibility.Visible;
+        }
+
+        private void StopAudioVisual(string state)
+        {
+            if (_isCurrentItemAudio)
+            {
+                audioVisualPlaceholder.StopAmbientAnimation();
+                audioVisualPlaceholder.SetTrack(CurrentItemTitle, state);
+            }
         }
 
         private void UpdateProgressStatus()
