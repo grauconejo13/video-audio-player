@@ -19,8 +19,9 @@
         </Storyboard>
     </UserControl.Resources>
 
-    <Grid Background="#06080C" ClipToBounds="True">
-        <Ellipse Width="410" Height="410" HorizontalAlignment="Center" VerticalAlignment="Center" Opacity="0.18">
+    <Grid ClipToBounds="True">
+        <Grid.Background><RadialGradientBrush Center="0.5,0.42" GradientOrigin="0.5,0.42" RadiusX="0.82" RadiusY="0.82"><GradientStop Color="#14172A" Offset="0" /><GradientStop Color="#0B0F1A" Offset="0.54" /><GradientStop Color="#06080C" Offset="1" /></RadialGradientBrush></Grid.Background>
+        <Ellipse Width="560" Height="560" HorizontalAlignment="Center" VerticalAlignment="Center" Opacity="0.22">
             <Ellipse.Fill>
                 <RadialGradientBrush>
                     <GradientStop Color="#4D64D8E8" Offset="0" />
@@ -30,11 +31,11 @@
             </Ellipse.Fill>
         </Ellipse>
 
-        <Grid Width="310" Height="310" HorizontalAlignment="Center" VerticalAlignment="Center">
-            <Ellipse x:Name="OuterRing" Width="290" Height="290" Stroke="{StaticResource CyanBrush}" StrokeThickness="1" Opacity="0.24">
+        <Grid Width="420" Height="410" HorizontalAlignment="Center" VerticalAlignment="Center">
+            <Ellipse x:Name="OuterRing" Width="385" Height="385" Stroke="{StaticResource CyanBrush}" StrokeThickness="1.2" Opacity="0.24">
                 <Ellipse.RenderTransform><ScaleTransform x:Name="OuterRingScale" /></Ellipse.RenderTransform>
             </Ellipse>
-            <Ellipse x:Name="InnerRing" Width="205" Height="205" Stroke="{StaticResource VioletBrush}" StrokeThickness="1" Opacity="0.3" HorizontalAlignment="Center" VerticalAlignment="Center">
+            <Ellipse x:Name="InnerRing" Width="270" Height="270" Stroke="{StaticResource VioletBrush}" StrokeThickness="1" Opacity="0.3" HorizontalAlignment="Center" VerticalAlignment="Center">
                 <Ellipse.RenderTransform><ScaleTransform x:Name="InnerRingScale" /></Ellipse.RenderTransform>
             </Ellipse>
             <Canvas Width="300" Height="300" RenderTransformOrigin="0.5,0.5">
@@ -53,7 +54,7 @@
                 <TextBlock x:Name="trackTitle" Text="Audio ready" Foreground="{StaticResource PrimaryTextBrush}" FontSize="18" FontWeight="SemiBold" TextAlignment="Center" TextTrimming="CharacterEllipsis" Margin="0,10,0,0" />
                 <TextBlock x:Name="stateLabel" Text="Ready to play" Foreground="{StaticResource SecondaryTextBrush}" FontSize="12" TextAlignment="Center" Margin="0,6,0,0" />
             </StackPanel>
-            <UniformGrid x:Name="spectrumBars" Rows="1" Columns="32" Height="112" VerticalAlignment="Bottom" Margin="25,0,25,22" />
+            <UniformGrid x:Name="spectrumBars" Rows="1" Columns="32" Height="148" VerticalAlignment="Bottom" Margin="18,0,18,18" />
         </Grid>
     </Grid>
 </UserControl>

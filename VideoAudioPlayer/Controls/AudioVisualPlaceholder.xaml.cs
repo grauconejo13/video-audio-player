@@ -17,14 +17,26 @@ namespace MediaPlayer.Controls
             InitializeComponent();
             for (int index = 0; index < _displayBands.Length; index++)
             {
+                var accent = index % 7 == 0 ? (SolidColorBrush)FindResource("VioletBrush") : (SolidColorBrush)FindResource("CyanBrush");
                 var bar = new Border
                 {
-                    Background = index % 7 == 0 ? (Brush)FindResource("VioletBrush") : (Brush)FindResource("CyanBrush"),
-                    CornerRadius = new CornerRadius(2),
+                    Background = new LinearGradientBrush(
+                        Color.FromArgb(105, accent.Color.R, accent.Color.G, accent.Color.B),
+                        accent.Color,
+                        new Point(0.5, 0),
+                        new Point(0.5, 1)),
+                    CornerRadius = new CornerRadius(3, 3, 1, 1),
                     Height = 4,
                     VerticalAlignment = VerticalAlignment.Bottom,
-                    Margin = new Thickness(2, 0, 2, 0),
-                    Opacity = 0.82
+                    Margin = new Thickness(3, 0, 3, 0),
+                    Opacity = 0.88,
+                    Effect = new System.Windows.Media.Effects.DropShadowEffect
+                    {
+                        Color = accent.Color,
+                        BlurRadius = 7,
+                        ShadowDepth = 0,
+                        Opacity = 0.22
+                    }
                 };
                 _bars.Add(bar);
                 spectrumBars.Children.Add(bar);
@@ -67,7 +79,7 @@ namespace MediaPlayer.Controls
                 _displayBands[index] = target > _displayBands[index]
                     ? _displayBands[index] + (target - _displayBands[index]) * 0.65f
                     : _displayBands[index] + (target - _displayBands[index]) * 0.18f;
-                _bars[index].Height = 4 + _displayBands[index] * 108;
+                _bars[index].Height = 4 + _displayBands[index] * 140;
             }
         }
 
