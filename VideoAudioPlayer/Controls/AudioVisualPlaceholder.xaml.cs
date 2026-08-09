@@ -3,6 +3,7 @@ using System.Windows.Controls;
 using System.Windows.Media.Animation;
 using System.Collections.Generic;
 using System.Windows.Media;
+using MediaPlayer.AudioAnalysis;
 
 namespace MediaPlayer.Controls
 {
@@ -58,6 +59,7 @@ namespace MediaPlayer.Controls
 
             ((Storyboard)FindResource("AmbientStoryboard")).Begin(this, true);
             _isAnimating = true;
+            reactiveCanvas.SetActive(true);
         }
 
         public void StopAmbientAnimation()
@@ -69,6 +71,7 @@ namespace MediaPlayer.Controls
 
             ((Storyboard)FindResource("AmbientStoryboard")).Stop(this);
             _isAnimating = false;
+            reactiveCanvas.SetActive(false);
         }
 
         public void UpdateSpectrum(float[] bands)
@@ -83,6 +86,12 @@ namespace MediaPlayer.Controls
             }
         }
 
+        internal void UpdateAudioFrame(AudioAnalysisFrame frame)
+        {
+            UpdateSpectrum(frame.Bands);
+            reactiveCanvas.UpdateFrame(frame);
+        }
+
         public void ResetSpectrum()
         {
             for (int index = 0; index < _bars.Count; index++)
@@ -90,6 +99,7 @@ namespace MediaPlayer.Controls
                 _displayBands[index] = 0;
                 _bars[index].Height = 4;
             }
+            reactiveCanvas.Reset();
         }
     }
 }

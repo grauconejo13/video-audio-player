@@ -4,11 +4,28 @@ using NAudio.Wave;
 
 namespace MediaPlayer.AudioAnalysis
 {
+    internal sealed class AudioAnalysisFrame
+    {
+        public AudioAnalysisFrame(float[] bands, float[] waveform)
+        {
+            Bands = bands;
+            Waveform = waveform;
+            BassEnergy = bands.Length > 3 ? (bands[0] + bands[1] + bands[2] + bands[3]) / 4 : 0;
+            HighEnergy = bands.Length > 0 ? bands[^1] : 0;
+        }
+
+        public float[] Bands { get; }
+        public float[] Waveform { get; }
+        public float BassEnergy { get; }
+        public float HighEnergy { get; }
+    }
+
     internal sealed class AudioSpectrumAnalyzer : IDisposable
     {
         private const int FftLength = 2048;
         private readonly object _syncRoot = new();
         private readonly Complex[] _fftBuffer = new Complex[FftLength];
+        private readonly float[] _monoBuffer = new float[FftLength];
         private AudioFileReader? _reader;
         private float[]? _sampleBuffer;
         private int _channels;
@@ -28,7 +45,7 @@ namespace MediaPlayer.AudioAnalysis
             }
         }
 
-        public float[]? AnalyzeAt(TimeSpan position, int bandCount)
+        public AudioAnalysisFrame? AnalyzeAt(TimeSpan position, int bandCount)
         {
             lock (_syncRoot)
             {
@@ -59,12 +76,19 @@ namespace MediaPlayer.AudioAnalysis
                         }
 
                         float window = (float)(0.5 * (1 - Math.Cos(2 * Math.PI * frame / (FftLength - 1))));
+                        _monoBuffer[frame] = mono;
                         _fftBuffer[frame].X = mono * window;
                         _fftBuffer[frame].Y = 0;
                     }
 
                     FastFourierTransform.FFT(true, (int)Math.Log2(FftLength), _fftBuffer);
-                    return CreateBands(bandCount);
+                    var waveform = new float[128];
+                    for (int point = 0; point < waveform.Length; point++)
+                    {
+                        waveform[point] = _monoBuffer[point * (FftLength / waveform.Length)];
+                    }
+
+                    return new AudioAnalysisFrame(CreateBands(bandCount), waveform);
                 }
                 catch
                 {

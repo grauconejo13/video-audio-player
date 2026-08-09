@@ -85,10 +85,56 @@
         </ControlTemplate></Setter.Value></Setter>
     </Style>
 
+    <Style x:Key="SliderThumbStyle" TargetType="Thumb">
+        <Setter Property="Width" Value="12" /><Setter Property="Height" Value="12" /><Setter Property="Template"><Setter.Value><ControlTemplate TargetType="Thumb">
+            <Ellipse Fill="{StaticResource PrimaryTextBrush}" Stroke="{StaticResource CyanBrush}" StrokeThickness="1.5" />
+        </ControlTemplate></Setter.Value></Setter>
+    </Style>
+    <Style x:Key="SliderTrackButtonStyle" TargetType="RepeatButton">
+        <Setter Property="Focusable" Value="False" /><Setter Property="Template"><Setter.Value><ControlTemplate TargetType="RepeatButton"><Border Background="{TemplateBinding Background}" CornerRadius="2" /></ControlTemplate></Setter.Value></Setter>
+    </Style>
     <Style TargetType="Slider">
-        <Setter Property="Foreground" Value="{StaticResource CyanBrush}" /><Setter Property="Background" Value="#4D516077" /><Setter Property="Height" Value="22" />
-        <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="Slider">
-            <Grid Margin="0,8"><Track x:Name="PART_Track"><Track.DecreaseRepeatButton><RepeatButton Command="Slider.DecreaseLarge" Background="{TemplateBinding Foreground}" BorderThickness="0" Height="3" /></Track.DecreaseRepeatButton><Track.Thumb><Thumb Width="11" Height="11" Background="{StaticResource PrimaryTextBrush}" BorderBrush="{StaticResource CyanBrush}" BorderThickness="1" /></Track.Thumb><Track.IncreaseRepeatButton><RepeatButton Command="Slider.IncreaseLarge" Background="{TemplateBinding Background}" BorderThickness="0" Height="3" /></Track.IncreaseRepeatButton></Track></Grid>
+        <Setter Property="Foreground" Value="{StaticResource CyanBrush}" /><Setter Property="Background" Value="#4D516077" /><Setter Property="Height" Value="24" />
+        <Setter Property="Template">
+            <Setter.Value><ControlTemplate TargetType="Slider">
+            <Grid ClipToBounds="False">
+                <Track x:Name="PART_Track" VerticalAlignment="Center">
+                    <Track.DecreaseRepeatButton>
+            <RepeatButton Style="{StaticResource SliderTrackButtonStyle}" Command="{x:Static Slider.DecreaseLarge}" Background="{TemplateBinding Foreground}" Height="3" VerticalAlignment="Center" />
+            </Track.DecreaseRepeatButton>
+
+            <Track.Thumb>
+                <Thumb Style="{StaticResource SliderThumbStyle}" VerticalAlignment="Center" />
+                </Track.Thumb>
+                <Track.IncreaseRepeatButton>
+                    <RepeatButton Style="{StaticResource SliderTrackButtonStyle}" Command="{x:Static Slider.IncreaseLarge}" Background="{TemplateBinding Background}" Height="3" VerticalAlignment="Center" />
+                    </Track.IncreaseRepeatButton>
+                    </Track>
+                    </Grid>
+        </ControlTemplate>
+        </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="ScrollbarTrackButtonStyle" TargetType="RepeatButton">
+        <Setter Property="Focusable" Value="False" /><Setter Property="Template"><Setter.Value><ControlTemplate TargetType="RepeatButton"><Border Background="Transparent" /></ControlTemplate></Setter.Value></Setter>
+    </Style>
+    <Style x:Key="ScrollbarThumbStyle" TargetType="Thumb">
+        <Setter Property="Width" Value="6" /><Setter Property="MinHeight" Value="28" /><Setter Property="Template"><Setter.Value><ControlTemplate TargetType="Thumb">
+            <Border x:Name="ThumbBorder" Background="#8CAAB7C5" CornerRadius="3" Margin="1,2" />
+            <ControlTemplate.Triggers><Trigger Property="IsMouseOver" Value="True"><Setter TargetName="ThumbBorder" Property="Background" Value="#B06FE3ED" /></Trigger></ControlTemplate.Triggers>
+        </ControlTemplate></Setter.Value></Setter>
+    </Style>
+    <Style TargetType="ScrollBar">
+        <Setter Property="Width" Value="8" /><Setter Property="Background" Value="Transparent" /><Setter Property="Template"><Setter.Value><ControlTemplate TargetType="ScrollBar">
+            <Border Background="#33121924" CornerRadius="4"><Track x:Name="PART_Track" IsDirectionReversed="True" Maximum="{TemplateBinding Maximum}" Minimum="{TemplateBinding Minimum}" Value="{TemplateBinding Value}" ViewportSize="{TemplateBinding ViewportSize}">
+                <Track.DecreaseRepeatButton>
+                    <RepeatButton Style="{StaticResource ScrollbarTrackButtonStyle}" Command="{x:Static ScrollBar.PageUpCommand}" /></Track.DecreaseRepeatButton>
+                <Track.Thumb>
+                    <Thumb Style="{StaticResource ScrollbarThumbStyle}" /></Track.Thumb>
+                <Track.IncreaseRepeatButton>
+                    <RepeatButton Style="{StaticResource ScrollbarTrackButtonStyle}" Command="{x:Static ScrollBar.PageDownCommand}" /></Track.IncreaseRepeatButton>
+            </Track></Border>
         </ControlTemplate></Setter.Value></Setter>
     </Style>
 

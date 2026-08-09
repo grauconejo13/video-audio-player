@@ -24,7 +24,7 @@ namespace MediaPlayer
 
         private readonly DispatcherTimer _progressTimer;
         private readonly DispatcherTimer _visualizerTimer;
-        private readonly AudioSpectrumAnalyzer _spectrumAnalyzer = new();
+        private AudioSpectrumAnalyzer? _spectrumAnalyzer;
         private readonly List<Uri> _playlist = new();
         private PlaybackState _playbackState = PlaybackState.Idle;
         private int _currentIndex = -1;
@@ -63,19 +63,20 @@ namespace MediaPlayer
 
         private void visualizerTimer_Tick(object? sender, EventArgs e)
         {
-            if (!_isCurrentItemAudio || _playbackState != PlaybackState.Playing || !_spectrumAnalyzer.IsLoaded || Interlocked.CompareExchange(ref _spectrumRequestInFlight, 1, 0) != 0)
+            AudioSpectrumAnalyzer? analyzer = _spectrumAnalyzer;
+            if (!_isCurrentItemAudio || _playbackState != PlaybackState.Playing || analyzer is null || !analyzer.IsLoaded || Interlocked.CompareExchange(ref _spectrumRequestInFlight, 1, 0) != 0)
             {
                 return;
             }
 
             TimeSpan position = mediaElement.Position;
             int generation = _analysisGeneration;
-            _ = Task.Run(() => _spectrumAnalyzer.AnalyzeAt(position, 32)).ContinueWith(task => Dispatcher.BeginInvoke(new Action(() =>
+            _ = Task.Run(() => analyzer.AnalyzeAt(position, 32)).ContinueWith(task => Dispatcher.BeginInvoke(new Action(() =>
             {
                 Interlocked.Exchange(ref _spectrumRequestInFlight, 0);
                 if (generation == _analysisGeneration && task.Status == TaskStatus.RanToCompletion && task.Result is not null)
                 {
-                    audioVisualPlaceholder.UpdateSpectrum(task.Result);
+                    audioVisualPlaceholder.UpdateAudioFrame(task.Result);
                 }
             })));
         }
@@ -83,7 +84,7 @@ namespace MediaPlayer
         private void MainWindow_Closed(object? sender, EventArgs e)
         {
             _visualizerTimer.Stop();
-            _spectrumAnalyzer.Dispose();
+            RetireSpectrumAnalyzer();
         }
 
         private void openBtnMediaFile_Click(object sender, RoutedEventArgs e)
@@ -343,7 +344,7 @@ namespace MediaPlayer
             audioVisualPlaceholder.ResetSpectrum();
             _visualizerTimer.Stop();
             _analysisGeneration++;
-            _spectrumAnalyzer.Dispose();
+            RetireSpectrumAnalyzer();
             mediaElement.Stop();
             mediaElement.Source = _playlist[_currentIndex];
             _isCurrentItemAudio = IsAudioFile(_playlist[_currentIndex]);
@@ -351,14 +352,19 @@ namespace MediaPlayer
             {
                 try
                 {
-                    _spectrumAnalyzer.Load(_playlist[_currentIndex].LocalPath);
+                    var analyzer = new AudioSpectrumAnalyzer();
+                    analyzer.Load(_playlist[_currentIndex].LocalPath);
+                    _spectrumAnalyzer = analyzer;
                 }
                 catch
                 {
                     // Playback remains owned by MediaElement when this optional analysis reader cannot open the file.
                 }
             }
-            lblCurrentItem.Content = $"{_currentIndex + 1} of {_playlist.Count}: {CurrentItemTitle}";
+          string mediaMode = _isCurrentItemAudio ? "♫  Listening" : "▶  Watching";
+
+lblCurrentItem.Content =
+    $"{mediaMode} • {_currentIndex + 1} of {_playlist.Count}   {CurrentItemTitle}";
             lblStatus.Content = "Loading media...";
             ConfigureMediaViewport();
             sliderProgress.IsEnabled = false;
@@ -413,7 +419,7 @@ namespace MediaPlayer
 
         private void StartVisualizerTimer()
         {
-            if (!_visualizerTimer.IsEnabled && _spectrumAnalyzer.IsLoaded)
+            if (!_visualizerTimer.IsEnabled && _spectrumAnalyzer?.IsLoaded == true)
             {
                 _visualizerTimer.Start();
             }
@@ -451,21 +457,52 @@ namespace MediaPlayer
         private void RefreshPlaylistDisplay()
         {
             _isSynchronizingPlaylistSelection = true;
-            playlistList.Items.Clear();
-            foreach (Uri item in _playlist)
+            try
             {
-                playlistList.Items.Add(Path.GetFileName(item.LocalPath));
+                playlistList.Items.Clear();
+                foreach (Uri item in _playlist)
+                {
+                    playlistList.Items.Add(Path.GetFileName(item.LocalPath));
+                }
             }
-
-            _isSynchronizingPlaylistSelection = false;
+            finally
+            {
+                _isSynchronizingPlaylistSelection = false;
+            }
         }
 
         private void SynchronizePlaylistSelection()
         {
             _isSynchronizingPlaylistSelection = true;
-            playlistList.SelectedIndex = _currentIndex;
-            playlistList.ScrollIntoView(playlistList.SelectedItem);
-            _isSynchronizingPlaylistSelection = false;
+            try
+            {
+                if (_currentIndex < 0 || _currentIndex >= _playlist.Count || _currentIndex >= playlistList.Items.Count)
+                {
+                    playlistList.SelectedIndex = -1;
+                    return;
+                }
+
+                playlistList.SelectedIndex = _currentIndex;
+                object? selectedItem = playlistList.SelectedItem;
+                if (selectedItem is not null)
+                {
+                    playlistList.ScrollIntoView(selectedItem);
+                }
+            }
+            finally
+            {
+                _isSynchronizingPlaylistSelection = false;
+            }
+        }
+
+        private void RetireSpectrumAnalyzer()
+        {
+            _analysisGeneration++;
+            AudioSpectrumAnalyzer? analyzer = Interlocked.Exchange(ref _spectrumAnalyzer, null);
+            if (analyzer is not null)
+            {
+                _ = Task.Run(analyzer.Dispose);
+            }
         }
 
         private string FormatPositionAndDuration()
