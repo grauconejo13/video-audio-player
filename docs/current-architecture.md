@@ -7,8 +7,9 @@ VideoAudioPlayer.sln                 Single-solution WPF application
 VideoAudioPlayer/
   VideoAudioPlayer.csproj            SDK-style WinExe targeting net6.0-windows
   App.xaml / App.xaml.cs             Application startup
-  MainWindow.xaml                    Player screen and controls
-  MainWindow.xaml.cs                 Player state, playback, file selection, playlist navigation
+  Themes/PlayerTheme.xaml            Shared dark player palette and reusable control styles
+  MainWindow.xaml                    Responsive playlist/sidebar, media display, and transport UI
+  MainWindow.xaml.cs                 Player state, playback, UI synchronization, and navigation
   AssemblyInfo.cs                    WPF theme metadata
 docs/                                Architecture, issue, and manual-test documentation
 ```
@@ -20,8 +21,9 @@ The project has no NuGet package dependencies, test project, view models, or ser
 | Component | Responsibility |
 | --- | --- |
 | `App` | Starts `MainWindow.xaml`. |
-| `MainWindow.xaml` | Hosts `MediaElement`, current-item/status labels, and player controls. |
-| `MainWindow` | Owns the explicit playback state, the lightweight in-memory playlist, media events, and control availability. |
+| `PlayerTheme.xaml` | Supplies the reusable galaxy-black palette and shared styles for panels, buttons, list items, labels, and sliders. |
+| `MainWindow.xaml` | Hosts a responsive playlist sidebar, media display, status header, seek/volume controls, and transport bar. |
+| `MainWindow` | Owns the explicit playback state, lightweight in-memory playlist, media events, UI synchronization, and control availability. |
 | `DispatcherTimer` | Refreshes playback position only while playback is active. |
 
 ## Media playback flow
@@ -36,7 +38,7 @@ The explicit states are `Idle`, `Loaded`, `Playing`, `Paused`, `Stopped`, and `F
 
 ## File selection and navigation flow
 
-The Open Files dialog supports selecting multiple files. Its filters include MP4, MKV, AVI, MOV, WMV, MP3, WAV, WMA, M4A, and AAC, plus an All files fallback. The player maintains the selected files only in memory for the current window session. Previous and Next load adjacent entries; they do not auto-play them.
+The Open Files dialog supports selecting multiple files. Its filters include MP4, MKV, AVI, MOV, WMV, MP3, WAV, WMA, M4A, and AAC, plus an All files fallback. The player maintains the selected files only in memory for the current window session. The sidebar displays file names and lets the user select an item. Previous and Next load adjacent entries; they do not auto-play them. The seek slider synchronizes with the existing timer and can set a loaded item's position; the volume slider directly controls `MediaElement.Volume`.
 
 Container extensions are a convenience filter, not a playback guarantee. WPF `MediaElement` remains dependent on codecs installed on Windows.
 
@@ -48,6 +50,6 @@ The app remains deliberately small and event-driven: all UI behavior lives in `M
 
 * Target framework `net6.0-windows` is out of support; it remains unchanged by request.
 * The WPF media pipeline has variable codec/container support, particularly for MKV variants.
-* There is still no persistent playlist, seek bar, volume control, automatic next-item behavior, logging, or automated tests.
-* Layout is still fixed/prototype-oriented and has not received the requested future dark custom-UI treatment.
+* There is still no persistent playlist, automatic next-item behavior, logging, or automated tests.
+* The new responsive dark UI is intentionally limited to WPF native controls and styles; a richer visual system is deferred.
 * The window class remains in `MediaPlayer` while the application/project uses `VideoAudioPlayer`; this is a non-functional naming inconsistency to address later.

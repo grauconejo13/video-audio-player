@@ -23,6 +23,8 @@ namespace MediaPlayer
         private readonly List<Uri> _playlist = new();
         private PlaybackState _playbackState = PlaybackState.Idle;
         private int _currentIndex = -1;
+        private bool _isSeeking;
+        private bool _isSynchronizingPlaylistSelection;
 
         public MainWindow()
         {
@@ -34,6 +36,7 @@ namespace MediaPlayer
             mediaElement.MediaOpened += mediaElement_MediaOpened;
             mediaElement.MediaEnded += mediaElement_MediaEnded;
             mediaElement.MediaFailed += mediaElement_MediaFailed;
+            mediaElement.Volume = sliderVolume.Value;
 
             UpdateControls();
         }
@@ -66,12 +69,16 @@ namespace MediaPlayer
             }
 
             _currentIndex = 0;
+            RefreshPlaylistDisplay();
             LoadCurrentItem();
         }
 
         private void mediaElement_MediaOpened(object sender, RoutedEventArgs e)
         {
             _playbackState = PlaybackState.Loaded;
+            ConfigureProgressSlider();
+            UpdateTimeDisplay();
+            emptyMediaMessage.Visibility = Visibility.Collapsed;
             lblStatus.Content = $"Loaded - {FormatPositionAndDuration()}";
             UpdateControls();
         }
@@ -80,6 +87,7 @@ namespace MediaPlayer
         {
             StopProgressTimer();
             _playbackState = PlaybackState.Stopped;
+            UpdateTimeDisplay();
             lblStatus.Content = "Playback finished";
             UpdateControls();
         }
@@ -88,6 +96,7 @@ namespace MediaPlayer
         {
             StopProgressTimer();
             _playbackState = PlaybackState.Failed;
+            emptyMediaMessage.Visibility = Visibility.Visible;
             lblStatus.Content = $"Unable to play this file: {e.ErrorException.Message}";
             UpdateControls();
         }
@@ -130,6 +139,7 @@ namespace MediaPlayer
             mediaElement.Stop();
             StopProgressTimer();
             _playbackState = PlaybackState.Stopped;
+            UpdateTimeDisplay();
             lblStatus.Content = $"Stopped - {FormatPositionAndDuration()}";
             UpdateControls();
         }
@@ -145,6 +155,7 @@ namespace MediaPlayer
             mediaElement.Position = TimeSpan.Zero;
             StopProgressTimer();
             _playbackState = PlaybackState.Stopped;
+            UpdateTimeDisplay();
             lblStatus.Content = $"Reset - {FormatPositionAndDuration()}";
             UpdateControls();
         }
@@ -171,6 +182,47 @@ namespace MediaPlayer
             LoadCurrentItem();
         }
 
+        private void playlistList_SelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
+        {
+            if (_isSynchronizingPlaylistSelection || playlistList.SelectedIndex < 0 || playlistList.SelectedIndex == _currentIndex)
+            {
+                return;
+            }
+
+            _currentIndex = playlistList.SelectedIndex;
+            LoadCurrentItem();
+        }
+
+        private void sliderProgress_PreviewMouseLeftButtonDown(object sender, System.Windows.Input.MouseButtonEventArgs e)
+        {
+            _isSeeking = HasLoadedMedia();
+        }
+
+        private void sliderProgress_PreviewMouseLeftButtonUp(object sender, System.Windows.Input.MouseButtonEventArgs e)
+        {
+            if (!_isSeeking)
+            {
+                return;
+            }
+
+            mediaElement.Position = TimeSpan.FromSeconds(sliderProgress.Value);
+            _isSeeking = false;
+            UpdateTimeDisplay();
+        }
+
+        private void sliderProgress_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+        {
+            if (_isSeeking)
+            {
+                lblElapsedTime.Content = TimeSpan.FromSeconds(e.NewValue).ToString(@"mm\:ss");
+            }
+        }
+
+        private void sliderVolume_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+        {
+            mediaElement.Volume = e.NewValue;
+        }
+
         private void LoadCurrentItem()
         {
             StopProgressTimer();
@@ -179,12 +231,63 @@ namespace MediaPlayer
             mediaElement.Source = _playlist[_currentIndex];
             lblCurrentItem.Content = $"{_currentIndex + 1} of {_playlist.Count}: {Path.GetFileName(_playlist[_currentIndex].LocalPath)}";
             lblStatus.Content = "Loading media...";
+            emptyMediaMessage.Visibility = Visibility.Visible;
+            sliderProgress.IsEnabled = false;
+            sliderProgress.Value = 0;
+            sliderProgress.Maximum = 1;
+            lblElapsedTime.Content = "00:00";
+            lblDuration.Content = "--:--";
+            SynchronizePlaylistSelection();
             UpdateControls();
         }
 
         private void UpdateProgressStatus()
         {
+            UpdateTimeDisplay();
             lblStatus.Content = $"Playing - {FormatPositionAndDuration()}";
+        }
+
+        private void ConfigureProgressSlider()
+        {
+            if (!mediaElement.NaturalDuration.HasTimeSpan)
+            {
+                sliderProgress.IsEnabled = false;
+                lblDuration.Content = "--:--";
+                return;
+            }
+
+            sliderProgress.Maximum = Math.Max(1, mediaElement.NaturalDuration.TimeSpan.TotalSeconds);
+            sliderProgress.IsEnabled = true;
+            lblDuration.Content = mediaElement.NaturalDuration.TimeSpan.ToString(@"mm\:ss");
+        }
+
+        private void UpdateTimeDisplay()
+        {
+            lblElapsedTime.Content = mediaElement.Position.ToString(@"mm\:ss");
+            if (!_isSeeking && sliderProgress.IsEnabled)
+            {
+                sliderProgress.Value = Math.Min(sliderProgress.Maximum, mediaElement.Position.TotalSeconds);
+            }
+        }
+
+        private void RefreshPlaylistDisplay()
+        {
+            _isSynchronizingPlaylistSelection = true;
+            playlistList.Items.Clear();
+            foreach (Uri item in _playlist)
+            {
+                playlistList.Items.Add(Path.GetFileName(item.LocalPath));
+            }
+
+            _isSynchronizingPlaylistSelection = false;
+        }
+
+        private void SynchronizePlaylistSelection()
+        {
+            _isSynchronizingPlaylistSelection = true;
+            playlistList.SelectedIndex = _currentIndex;
+            playlistList.ScrollIntoView(playlistList.SelectedItem);
+            _isSynchronizingPlaylistSelection = false;
         }
 
         private string FormatPositionAndDuration()
