@@ -33,6 +33,7 @@ namespace MediaPlayer
         private bool _isCurrentItemAudio;
         private int _spectrumRequestInFlight;
         private int _analysisGeneration;
+        private bool _autoPlayWhenMediaOpens;
 
         public MainWindow()
         {
@@ -98,15 +99,35 @@ namespace MediaPlayer
                 return;
             }
 
-            _playlist.Clear();
+            bool playlistWasEmpty = _playlist.Count == 0;
+            bool addedAnyFiles = false;
             foreach (string fileName in openFileDialog.FileNames)
             {
-                _playlist.Add(new Uri(fileName));
+                string fullPath = Path.GetFullPath(fileName);
+                bool alreadyPresent = _playlist.Exists(item => string.Equals(item.LocalPath, fullPath, StringComparison.OrdinalIgnoreCase));
+                if (!alreadyPresent)
+                {
+                    _playlist.Add(new Uri(fullPath));
+                    addedAnyFiles = true;
+                }
             }
 
-            _currentIndex = 0;
+            if (!addedAnyFiles)
+            {
+                return;
+            }
+
             RefreshPlaylistDisplay();
-            LoadCurrentItem();
+            if (playlistWasEmpty)
+            {
+                _currentIndex = 0;
+                LoadCurrentItem();
+            }
+            else
+            {
+                SynchronizePlaylistSelection();
+                UpdateControls();
+            }
         }
 
         private void mediaElement_MediaOpened(object sender, RoutedEventArgs e)
@@ -120,11 +141,33 @@ namespace MediaPlayer
                 audioVisualPlaceholder.SetTrack(CurrentItemTitle, "Ready to play");
             }
             lblStatus.Content = $"Loaded - {FormatPositionAndDuration()}";
+            if (_autoPlayWhenMediaOpens)
+            {
+                _autoPlayWhenMediaOpens = false;
+                mediaElement.Play();
+                _playbackState = PlaybackState.Playing;
+                StartProgressTimer();
+                if (_isCurrentItemAudio)
+                {
+                    audioVisualPlaceholder.SetTrack(CurrentItemTitle, "Playing");
+                    audioVisualPlaceholder.StartAmbientAnimation();
+                    StartVisualizerTimer();
+                }
+                UpdateProgressStatus();
+            }
             UpdateControls();
         }
 
         private void mediaElement_MediaEnded(object sender, RoutedEventArgs e)
         {
+            if (_currentIndex >= 0 && _currentIndex < _playlist.Count - 1)
+            {
+                _autoPlayWhenMediaOpens = true;
+                _currentIndex++;
+                LoadCurrentItem();
+                return;
+            }
+
             StopProgressTimer();
             _playbackState = PlaybackState.Stopped;
             UpdateTimeDisplay();
@@ -137,6 +180,7 @@ namespace MediaPlayer
 
         private void mediaElement_MediaFailed(object? sender, ExceptionRoutedEventArgs e)
         {
+            _autoPlayWhenMediaOpens = false;
             StopProgressTimer();
             _playbackState = PlaybackState.Failed;
             StopAudioVisual("Playback unavailable");
